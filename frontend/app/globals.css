@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* The two surfaces the whole dashboard is built from: the page behind
+   everything, and the panels sitting on it. Tokens rather than repeated hex
+   literals, so a theme change is one edit. */
+@theme {
+  --color-app: #0a0d10;
+  --color-panel: #0d1116;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-app);
+  color: #e2e8f0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+/* A new alert slides in and holds a red ring for a couple of seconds, so one
+   arriving mid-sentence during a demo still registers. */
+@keyframes alert-enter {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes alert-flash {
+  0%, 30% { background-color: rgb(248 113 113 / 0.14); box-shadow: inset 3px 0 0 rgb(248 113 113 / 0.9); }
+  100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+
+.alert-enter {
+  animation: alert-enter 180ms ease-out, alert-flash 2.6s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-enter { animation: none; }
+}
