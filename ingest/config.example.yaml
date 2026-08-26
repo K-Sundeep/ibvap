@@ -1,0 +1,24 @@
+# IBVAP ingest config
+# Copy this file to config.yaml and edit for your setup.
+# camera_id must be unique — it's used in URLs (/stream/<camera_id>) and later
+# becomes the camera_id field in the event schema, so keep it stable once other
+# services (inference/backend) start depending on it.
+
+defaults:
+  target_fps: 10          # normalized FPS for display/inference, not the source FPS
+  target_width: 960
+  target_height: 540
+  jpeg_quality: 80
+
+cameras:
+  - camera_id: cam1
+    rtsp_url: "rtsp://127.0.0.1:8554/cam1"
+
+  - camera_id: cam2
+    rtsp_url: "rtsp://127.0.0.1:8555/cam2"
+
+  - camera_id: cam3
+    rtsp_url: "rtsp://127.0.0.1:8556/cam3"
+
+  # Add up to cam4 the same way — just duplicate the block above and bump the port
+  # to match loop_samples.sh.

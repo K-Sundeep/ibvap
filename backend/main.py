@@ -10,6 +10,7 @@ from routes.tracks import router as tracks_router
 from routes.fences import router as fences_router
 from routes.events import router as events_router
 from routes.alerts import router as alerts_router
+from routes.blacklist import router as blacklist_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,7 @@ app.include_router(tracks_router)
 app.include_router(fences_router)
 app.include_router(events_router)
 app.include_router(alerts_router)
+app.include_router(blacklist_router)
 app.mount("/snapshots", StaticFiles(directory=SNAPSHOT_DIR), name="snapshots")
 
 

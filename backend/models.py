@@ -78,6 +78,20 @@ def init_db() -> None:
         """
     )
 
+    # Phase 3 — ANPR blacklist. plate_text is normalized (uppercase, no
+    # whitespace) on write so OCR noise/casing doesn't cause false negatives
+    # on lookup.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS blacklist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plate_text TEXT UNIQUE NOT NULL,
+            label TEXT,
+            enrolled_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
     conn.commit()
     conn.close()
 

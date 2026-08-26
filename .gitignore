@@ -1,31 +1,15 @@
 # Python
 __pycache__/
 *.pyc
-venv/
 .venv/
-*.egg-info/
 
-# Node / frontend
+# Node / Next.js
 node_modules/
 .next/
-dist/
-build/
 
-# Env & secrets
+# Runtime data
+db/*.db
+backend/storage/
+
+# Env
 .env
-*.env.local
-
-# DB
-db/ibvap.db
-*.sqlite3
-
-# Media (don't commit large video/snapshot files)
-*.mp4
-*.avi
-snapshots/
-clips/
-
-# OS/editor junk
-.DS_Store
-.vscode/
-.idea/
