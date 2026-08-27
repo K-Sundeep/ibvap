@@ -9,3 +9,11 @@ httpx==0.27.2
 requests==2.32.3
 websockets==13.1
  
+
+ultralytics       # YOLOv8/v10 detection
+opencv-python     # frame I/O, drawing, image processing (fence/ANPR/night_mode)
+lap               # required by ultralytics' tracking utilities
+supervision       # ByteTrack implementation used in tracker.py
+easyocr           # OCR for anpr_module.py
+requests          # backend_client.py, ingest_client.py, watchlist_client.py
+numpy             # used directly across detector/tracker/rules/anpr modules
