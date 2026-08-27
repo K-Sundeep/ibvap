@@ -20,26 +20,56 @@ _TIMEOUT = httpx.Timeout(2.0)
 _client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=_TIMEOUT)
 
 
-async def post_tracks(camera_id: str, tracks: list[dict]) -> None:
+async def post_tracks(
+    camera_id: str,
+    tracks: list[dict],
+    frame_width: int,
+    frame_height: int,
+    frame_id: int,
+    fps: float | None = None,
+    latency_ms: float | None = None,
+) -> None:
     """
-    tracks: list of {"track_id": str, "class": str, "bbox": [x1,y1,x2,y2], "confidence": float}
+    tracks: list of {"track_id": int|str, "cls": str, "conf": float,
+                      "bbox_px": [x1, y1, x2, y2]}   <- raw pixel corners
+            (detector.py/tracker.py should produce this shape)
+
+    Converts pixel bboxes to normalized [x, y, w, h] (0-1 fractions) before
+    sending, per the contract in frontend/app/hooks/useTrackStream.js —
+    the overlay is resolution-independent by design, so normalization has
+    to happen here, the only place that knows the frame's actual size.
     """
+    normalized_tracks = []
+    for t in tracks:
+        x1, y1, x2, y2 = t["bbox_px"]
+        normalized_tracks.append({
+            "track_id": t["track_id"],
+            "cls": t["cls"],
+            "conf": t["conf"],
+            "bbox": [
+                x1 / frame_width,
+                y1 / frame_height,
+                (x2 - x1) / frame_width,
+                (y2 - y1) / frame_height,
+            ],
+        })
+
     payload = {
         "camera_id": camera_id,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
-        "tracks": tracks,
+        "frame_id": frame_id,
+        "ts": time.time(),
+        "fps": fps,
+        "latency_ms": latency_ms,
+        "tracks": normalized_tracks,
     }
     start = time.monotonic()
     try:
         resp = await _client.post("/tracks", json=payload)
         resp.raise_for_status()
         elapsed_ms = (time.monotonic() - start) * 1000
-        # Inference-side timing, independent of backend's own FPS/latency log,
-        # so the two can be cross-checked per the sanity-check requirement.
         logger.info(f"[{camera_id}] posted {len(tracks)} tracks in {elapsed_ms:.1f}ms")
     except httpx.HTTPError as exc:
         logger.warning(f"[{camera_id}] failed to post tracks to backend: {exc}")
-
 
 async def post_event(
     camera_id: str,

@@ -17,6 +17,7 @@ Revisit once ingest registers real cameras.
 
 import os
 import sqlite3
+import time
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "db", "ibvap.db")
 
@@ -54,7 +55,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             camera_id TEXT NOT NULL,
             type TEXT NOT NULL,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+            timestamp REAL NOT NULL,
             track_id TEXT,
             confidence REAL,
             snapshot_path TEXT,
@@ -63,7 +64,6 @@ def init_db() -> None:
         )
         """
     )
-
     # Phase 2 — virtual fence storage. One fence polygon per camera (latest
     # save wins; not versioned). polygon is stored as a JSON array of
     # [x, y] points, e.g. "[[10,10],[500,10],[500,400],[10,400]]".
@@ -83,17 +83,22 @@ def init_db() -> None:
     # on lookup.
     cur.execute(
         """
-        CREATE TABLE IF NOT EXISTS blacklist (
+        CREATE TABLE IF NOT EXISTS watchlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            plate_text TEXT UNIQUE NOT NULL,
-            label TEXT,
-            enrolled_at TEXT DEFAULT CURRENT_TIMESTAMP
+            kind TEXT NOT NULL DEFAULT 'plate',
+            value TEXT NOT NULL,
+            list_type TEXT NOT NULL DEFAULT 'blacklist',
+            note TEXT,
+            created_at REAL NOT NULL,
+            UNIQUE(kind, value)
         )
         """
     )
 
     conn.commit()
     conn.close()
+
+
 
 
 def insert_event(
@@ -105,15 +110,14 @@ def insert_event(
     clip_path: str | None = None,
     metadata_json: str | None = None,
 ) -> int:
-    """Insert a row into `events` exactly per the PROJECT_CONTEXT.md schema. Returns the new row id."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO events (camera_id, type, track_id, confidence, snapshot_path, clip_path, metadata_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events (camera_id, type, timestamp, track_id, confidence, snapshot_path, clip_path, metadata_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (camera_id, type, track_id, confidence, snapshot_path, clip_path, metadata_json),
+        (camera_id, type, time.time(), track_id, confidence, snapshot_path, clip_path, metadata_json),
     )
     conn.commit()
     new_id = cur.lastrowid

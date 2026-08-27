@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from models import init_db
 from snapshot_storage import SNAPSHOT_DIR
@@ -10,7 +11,7 @@ from routes.tracks import router as tracks_router
 from routes.fences import router as fences_router
 from routes.events import router as events_router
 from routes.alerts import router as alerts_router
-from routes.blacklist import router as blacklist_router
+from routes.watchlist import router as watchlist_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,11 +26,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="IBVAP Backend", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(tracks_router)
-app.include_router(fences_router)
-app.include_router(events_router)
+app.include_router(fences_router, prefix="/api")
+app.include_router(events_router, prefix="/api")
 app.include_router(alerts_router)
-app.include_router(blacklist_router)
+app.include_router(watchlist_router, prefix="/api")
 app.mount("/snapshots", StaticFiles(directory=SNAPSHOT_DIR), name="snapshots")
 
 

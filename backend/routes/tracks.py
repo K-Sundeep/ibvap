@@ -2,17 +2,11 @@
 Direct HTTP + WebSocket bridge between inference and the dashboard.
 No broker (matches PROJECT_CONTEXT.md section 3: "no message queue").
 
-Flow:
-    inference --POST /tracks--> backend --broadcast--> dashboard (WebSocket /ws/tracks)
+One WebSocket connection per camera: /ws/tracks/{camera_id}.
+Each dashboard tile subscribes only to its own camera's track stream.
 
-Track payload contract (confirmed with user):
-{
-  "camera_id": "cam_01",
-  "timestamp": "2026-08-26T10:15:32.451Z",
-  "tracks": [
-    {"track_id": "17", "class": "human", "bbox": [x1, y1, x2, y2], "confidence": 0.91}
-  ]
-}
+Flow:
+    inference --POST /tracks--> backend --broadcast (this camera only)--> dashboard
 """
 
 import logging
@@ -24,28 +18,25 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 logger = logging.getLogger("ibvap.tracks")
 router = APIRouter()
 
-# Connected dashboard clients
-_ws_clients: list[WebSocket] = []
+# Connected dashboard clients, grouped by camera_id — a client watching
+# CAM-01 should never receive CAM-02's frames.
+_ws_clients: dict[str, list[WebSocket]] = defaultdict(list)
 
-# Backend-side per-camera stream stats — kept independent of whatever
-# inference logs on its own end, so the two numbers can be cross-checked.
 _last_seen: dict[str, float] = {}
 _frame_counts: dict[str, int] = defaultdict(int)
 
 
-@router.websocket("/ws/tracks")
-async def ws_tracks(websocket: WebSocket) -> None:
+@router.websocket("/ws/tracks/{camera_id}")
+async def ws_tracks(websocket: WebSocket, camera_id: str) -> None:
     await websocket.accept()
-    _ws_clients.append(websocket)
-    logger.info(f"dashboard client connected (total={len(_ws_clients)})")
+    _ws_clients[camera_id].append(websocket)
+    logger.info(f"[{camera_id}] dashboard client connected (total={len(_ws_clients[camera_id])})")
     try:
         while True:
-            # Dashboard doesn't need to send anything; this just keeps the
-            # connection open and detects disconnects.
             await websocket.receive_text()
     except WebSocketDisconnect:
-        _ws_clients.remove(websocket)
-        logger.info(f"dashboard client disconnected (total={len(_ws_clients)})")
+        _ws_clients[camera_id].remove(websocket)
+        logger.info(f"[{camera_id}] dashboard client disconnected (total={len(_ws_clients[camera_id])})")
 
 
 @router.post("/tracks")
@@ -53,7 +44,6 @@ async def post_tracks(payload: dict) -> dict:
     camera_id = payload.get("camera_id", "unknown")
     now = time.monotonic()
 
-    # --- Backend-side FPS / latency logging ---
     _frame_counts[camera_id] += 1
     last = _last_seen.get(camera_id)
     if last is not None:
@@ -65,14 +55,14 @@ async def post_tracks(payload: dict) -> dict:
         )
     _last_seen[camera_id] = now
 
-    # --- Broadcast to connected dashboard clients ---
+    clients = _ws_clients.get(camera_id, [])
     dead: list[WebSocket] = []
-    for ws in _ws_clients:
+    for ws in clients:
         try:
             await ws.send_json(payload)
         except Exception:
             dead.append(ws)
     for ws in dead:
-        _ws_clients.remove(ws)
+        clients.remove(ws)
 
-    return {"status": "ok", "clients_notified": len(_ws_clients) - len(dead)}
+    return {"status": "ok", "clients_notified": len(clients) - len(dead)}

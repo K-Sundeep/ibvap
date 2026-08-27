@@ -13,12 +13,12 @@ On creation, this also:
   isn't configured — see alerting/telegram_bot.py)
 """
 
-from typing import Optional
 
+from typing import Optional
+from fastapi import APIRouter, Query
+from models import insert_event, get_event, get_connection
 from fastapi import APIRouter
 from pydantic import BaseModel
-
-from models import insert_event, get_event
 from snapshot_storage import save_snapshot
 from routes.alerts import broadcast_alert
 from alerting.telegram_bot import maybe_send_intrusion_alert
@@ -60,3 +60,46 @@ async def create_event(event: EventIn) -> dict:
         await maybe_send_intrusion_alert(row)
 
     return {"status": "ok", "id": new_id, "snapshot_path": snapshot_path}
+
+@router.get("/events")
+def list_events(
+    camera_id: Optional[str] = None,
+    type: Optional[str] = None,
+    from_: Optional[float] = Query(None, alias="from"),
+    to: Optional[float] = None,
+    q: Optional[str] = None,
+    limit: int = 25,
+    offset: int = 0,
+) -> dict:
+    conn = get_connection()
+    cur = conn.cursor()
+
+    where = []
+    params = []
+    if camera_id:
+        where.append("camera_id = ?")
+        params.append(camera_id)
+    if type:
+        where.append("type = ?")
+        params.append(type)
+    if from_ is not None:
+        where.append("timestamp >= ?")
+        params.append(from_)
+    if to is not None:
+        where.append("timestamp <= ?")
+        params.append(to)
+    if q:
+        where.append("(metadata_json LIKE ? OR camera_id LIKE ? OR track_id LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like, like])
+
+    where_clause = f"WHERE {' AND '.join(where)}" if where else ""
+
+    total = cur.execute(f"SELECT COUNT(*) FROM events {where_clause}", params).fetchone()[0]
+    rows = cur.execute(
+        f"SELECT * FROM events {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+        params + [limit, offset],
+    ).fetchall()
+    conn.close()
+
+    return {"events": [dict(row) for row in rows], "total": total}
